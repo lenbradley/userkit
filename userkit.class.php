@@ -30,7 +30,14 @@ class userKit {
         $this->setupDbInfo( $settings['dbinfo'] );
         $this->setupPHPass( $settings['phpass'] );
 
-        $this->ID = 0;        
+        $this->ID = 0;
+
+        if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {
+            $this->ID = $_SESSION[$this->config->session_var_name];
+            $this->setUserData( $this->ID );
+        } else {
+            $this->tryLoginFromCookie();            
+        }       
 
         return true;
     }
@@ -108,8 +115,8 @@ class userKit {
                 'username_char_whitelist'   => '.-_!#^*+=|{}[]~<>?',
                 'username_min_length'       => 3,
                 'username_max_length'       => 16,
-                'password_min_length'       => 8,                
-                'cookie_minutes_active'     => 43200,
+                'password_min_length'       => 8,
+                'cookie_minutes_active'     => 129600, // 90 days
                 'session_var_name'          => 'userkit_login'
             ),
             'phpass' => array(
@@ -189,41 +196,49 @@ class userKit {
         }
     }
 
-    public function login( $user = array() ) {
+    public function login( $user, $pass, $remember = false ) {
 
-        $defaults = array(
-            'username'  => '',
-            'password'  => '',
-            'remember'  => false,
-            'cookie'    => false
-        );
-        $user = array_merge( $defaults, $user );
+        if ( empty( $user ) || empty( $pass ) ) {
+            $this->error( 'Username/Password must be provided' );
+            return false;
+        }        
         
-        if ( isset( $_SESSION['loggedin'] ) && $_SESSION['loggedin'] ) {
+        if ( isset( $_SESSION[$this->config->session_var_name] ) ) {
             $this->error( 'You are already logged in!' );
             return false;
         }
         
-        if ( $query = $this->userQuery( $user['username'] ) ) {
+        if ( $query = $this->userQuery( $user ) ) {
             
-            if ( ( $this->checkPassword( $user['password'], $query['password'] ) ) || ( $user['cookie'] && $user['password'] == $query['password'] ) ) {
+            if ( ( $this->checkPassword( $pass, $query['password'] ) ) ) {
                 $this->setUserData( $query );
 
-                $_SESSION['loggedin'] = true;
-                $_SESSION['userid'] = $query['userid'];
+                $_SESSION[$this->config->session_var_name] = $query['userid'];
                 
-                if ( $user['remember'] == true ) {
-                    $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );   
+                if ( $remember == true ) {
+                    $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );
                     setcookie( $this->config->session_var_name, $data, ( time() + ( 60 * $this->config->cookie_minutes_active ) ) );
                 }
                 return true;
             } else {
-                $this->error( 'The password entered is incorrect!' );
+                $this->error = 'The password entered is incorrect!';
                 return false;
             }
         } else {
-            $this->error( 'Username and/or Email Address does not exist!' );
+            $this->error = 'Username and/or Email Address does not exist!';
             return false;
+        }
+    }
+
+    public function tryLoginFromCookie() {
+        if ( isset( $_COOKIE[$this->config->session_var_name] ) ) {
+            $data   = $this->getData( $_COOKIE[$this->config->session_var_name] );
+            $login  = $this->login( $data[1], $data[2], true, true );
+            
+            if ( ! $login ) {
+                $this->error('Cookie is not valid');
+                $this->logout();
+            }
         }
     }
 
@@ -233,7 +248,9 @@ class userKit {
         
         if ( $redirect != '' && ! headers_sent() ) {
             header( 'Location: ' . $redirect );
+            exit();
         }
+
         return true;
     }
 

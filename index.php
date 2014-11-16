@@ -2,10 +2,11 @@
 require dirname(__FILE__) . '/userkit.class.php';
 $userKit = new userKit();
 
-if ( $userKit->editUser( 2 ) ) {
-    echo 'USER IS READY FOR EDIT!';
+if ( $login = $userKit->login( 'admin', 'aaa', false ) ) {
+    echo 'Login good!';
 } else {
-    echo 'USER DOES NOT EXIST FOR EDIT!';
+    echo $userKit->error;
 }
+
 $userKit->debug( $userKit );
 ?>
