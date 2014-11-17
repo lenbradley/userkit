@@ -1,5 +1,6 @@
 <?php
 require dirname(__FILE__) . '/userkit.class.php';
+
 $userKit = new userKit();
 
 if ( $login = $userKit->login( 'admin', 'aaa', false ) ) {
@@ -7,6 +8,4 @@ if ( $login = $userKit->login( 'admin', 'aaa', false ) ) {
 } else {
     echo $userKit->error;
 }
-
-$userKit->debug( $userKit );
 ?>

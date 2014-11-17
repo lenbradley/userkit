@@ -14,32 +14,32 @@
 
 class userKit {
 
-    public $ID, $editUser, $dbh;
+    public $ID, $editUser, $dbh, $init;
     protected $config, $dbinfo, $phpass;
 
     public function __construct( $settings = array() ) {
 
         $settings = $this->getSettings( $settings );
 
-        if ( ! $this->setupDatabaseHandler( $settings['dbh'] ) ) {
-            $this->outputErrorMessage( 'Cannot connect to database' );
-            return false;
-        }
+        if ( $this->setupDatabaseHandler( $settings['dbh'] ) ) {
 
-        $this->setupConfig( $settings['config'] );
-        $this->setupDbInfo( $settings['dbinfo'] );
-        $this->setupPHPass( $settings['phpass'] );
+            $this->setupConfig( $settings['config'] );
+            $this->setupDbInfo( $settings['dbinfo'] );
+            $this->setupPHPass( $settings['phpass'] );
 
-        $this->ID = 0;
+            $this->ID   = 0;
+            $this->init = true;
 
-        if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {
-            $this->ID = $_SESSION[$this->config->session_var_name];
-            $this->setUserData( $this->ID );
+            if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {
+                $this->ID = $_SESSION[$this->config->session_var_name];
+                $this->setUserData( $this->ID );
+            } else {
+                $this->tryLoginFromCookie();
+            }       
         } else {
-            $this->tryLoginFromCookie();            
-        }       
-
-        return true;
+            $this->outputErrorMessage( 'Cannot connect to database' );
+            $this->init = false;
+        }
     }
 
     public function debug( $data = null ) {
@@ -198,6 +198,10 @@ class userKit {
 
     public function login( $user, $pass, $remember = false ) {
 
+        if ( $this->init == false ) {
+            return false;
+        }
+
         if ( empty( $user ) || empty( $pass ) ) {
             $this->error( 'Username/Password must be provided' );
             return false;
@@ -259,6 +263,10 @@ class userKit {
     }
 
     public function addUser( $username, $email, $password, $meta = '' ) {
+
+        if ( $this->init == false ) {
+            return false;
+        }
 
         if ( $this->isValidUsername( $username ) !== true ) {            
             $this->error = 'The username you entered is not valid';
@@ -570,6 +578,11 @@ class userKit {
     }
 
     protected function userQuery( $user = 0 ) {
+
+        if ( $this->init == false ) {
+            return false;
+        }
+
         $user = strtolower( $user );      
         
         if ( ctype_digit( $user ) ) {
@@ -588,11 +601,21 @@ class userKit {
     }
 
     protected function userExists( $user ) {
+
+        if ( $this->init == false ) {
+            return false;
+        }
+
         $query = $this->userQuery( $user );
         return ( ! empty( $query ) ) ? true : false;
     }
 
     protected function setUserData( $data ) {
+
+        if ( $this->init == false ) {
+            return false;
+        }
+        
         if ( ! is_array( $data ) ) {
             $data = $this->userQuery( $data );
         }
