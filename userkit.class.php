@@ -19,19 +19,20 @@ class userKit {
 
     public function __construct( $settings = array() ) {
 
-        $settings = $this->getSettings( $settings );
+        $settings       = $this->getSettings( $settings );
+        $this->ID       = 0;
+        $this->editUser = 0;
 
         if ( $this->setupDatabaseHandler( $settings['dbh'] ) ) {
 
             $this->setupConfig( $settings['config'] );
             $this->setupDbInfo( $settings['dbinfo'] );
             $this->setupPHPass( $settings['phpass'] );
-
-            $this->ID   = 0;
+            
             $this->init = true;
 
             if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {
-                $this->ID = $_SESSION[$this->config->session_var_name];
+                $this->ID = $_SESSION[$this->config->session_var_name];                
                 $this->setUserData( $this->ID );
             } else {
                 $this->tryLoginFromCookie();
@@ -40,10 +41,12 @@ class userKit {
             $this->outputErrorMessage( 'Cannot connect to database' );
             $this->init = false;
         }
+
+        $this->editUser = $this->ID;
     }
 
-    public function debug( $data = null ) {
-        if ( $data === null ) {
+    public function debug( $data = '$this' ) {
+        if ( $data == '$this' ) {
             $data = $this;
         }
         echo '<pre><code>' . print_r( $data, true ) . '</code></pre>';
@@ -216,6 +219,10 @@ class userKit {
             
             if ( ( $this->checkPassword( $pass, $query['password'] ) ) ) {
                 $this->setUserData( $query );
+
+                if ( session_id() == '' ) {
+                    session_start();
+                }
 
                 $_SESSION[$this->config->session_var_name] = $query['userid'];
                 

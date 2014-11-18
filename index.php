@@ -1,11 +1,23 @@
 <?php
 require dirname(__FILE__) . '/userkit.class.php';
 
-$userKit = new userKit();
+$userkit = new userKit();
 
-if ( $login = $userKit->login( 'admin', 'aaa', false ) ) {
-    echo 'Login good!';
+/*
+if ( $userid = $userkit->addUser( 'admin', 'len@ideamktg.com', 'password' ) ) {
+    echo '<p>' . $userid . ' created successfully!</p>';
 } else {
-    echo $userKit->error;
+    echo '<p>' . $userkit->error . '</p>';
 }
+
+*/
+
+if ( $login = $userkit->login( 'admin', 'password', false ) ) {
+    echo '<p>Login good!</p>';
+} else {
+    echo '<p>' . $userkit->error . '</p>';
+}
+
+
+$userkit->debug();
 ?>
