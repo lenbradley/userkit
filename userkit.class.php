@@ -25,13 +25,17 @@ class userKit {
 
         if ( $this->setupDatabaseHandler( $settings['dbh'] ) ) {
 
+            if ( session_id() == '' ) {                    
+                session_start();
+            }
+
             $this->setupConfig( $settings['config'] );
             $this->setupDbInfo( $settings['dbinfo'] );
             $this->setupPHPass( $settings['phpass'] );
             
             $this->init = true;
 
-            if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {
+            if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {                
                 $this->ID = $_SESSION[$this->config->session_var_name];                
                 $this->setUserData( $this->ID );
             } else {
@@ -211,7 +215,7 @@ class userKit {
         }        
         
         if ( isset( $_SESSION[$this->config->session_var_name] ) ) {
-            $this->error( 'You are already logged in!' );
+            $this->error = 'You are already logged in!';
             return false;
         }
         
@@ -219,10 +223,6 @@ class userKit {
             
             if ( ( $this->checkPassword( $pass, $query['password'] ) ) ) {
                 $this->setUserData( $query );
-
-                if ( session_id() == '' ) {
-                    session_start();
-                }
 
                 $_SESSION[$this->config->session_var_name] = $query['userid'];
                 
@@ -266,7 +266,7 @@ class userKit {
     }
 
     public function isLoggedIn() {
-        return ( $this->ID != 0 ) ? true : false;
+        return ( $this->ID != 0 && $this->ID != false ) ? true : false;
     }
 
     public function addUser( $username, $email, $password, $meta = '' ) {
