@@ -124,7 +124,7 @@ class userKit {
                 'username_max_length'       => 16,
                 'password_min_length'       => 8,
                 'cookie_minutes_active'     => 129600, // 90 days
-                'session_var_name'          => 'userkit_login'
+                'session_var_name'          => '3HbH1Hqp2ZHP5Af3MSHe'
             ),
             'phpass' => array(
                 'itoa64'                => './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
@@ -210,7 +210,7 @@ class userKit {
         }
 
         if ( empty( $user ) || empty( $pass ) ) {
-            $this->error( 'Username/Password must be provided' );
+            $this->error = 'Username/Password must be provided';
             return false;
         }        
         
@@ -247,14 +247,23 @@ class userKit {
             $login  = $this->login( $data[1], $data[2], true, true );
             
             if ( ! $login ) {
-                $this->error('Cookie is not valid');
+                $this->error ='Cookie is not valid';
                 $this->logout();
             }
         }
     }
 
     public function logout( $redirect = '' ) {
+        $this->setUserData( false );
         setcookie( $this->config->session_var_name, '', ( time() - 3600 ) );
+
+        $_SESSION = array();        
+
+        if ( ini_get( 'session.use_cookies' ) ) {
+            $params = session_get_cookie_params();
+            setcookie( session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly'] );
+        }
+
         session_destroy();
         
         if ( $redirect != '' && ! headers_sent() ) {
@@ -365,7 +374,7 @@ class userKit {
             $this->success('New email address has been set');
             return true;
         } else {
-            $this->error('A problem occured while changing email address');
+            $this->error = 'A problem occured while changing email address';
             return false;
         }
     }
@@ -473,7 +482,7 @@ class userKit {
         }
         
         if ( $this->meta($key) ) {
-            $this->error('Meta key already exists!');
+            $this->error = 'Meta key already exists!';
             return false;
         }
         
@@ -499,7 +508,7 @@ class userKit {
         if ( $result = $query->execute() ) {
             return true;
         } else {
-            $this->error('Meta query could not be executed!');
+            $this->error = 'Meta query could not be executed!';
             return false;
         }
     }
@@ -535,7 +544,7 @@ class userKit {
             if ( $result = $query->execute() ) {            
                 return true;
             } else {
-                $this->error('Meta query could not be executed!');
+                $this->error = 'Meta query could not be executed!';
                 return false;
             }
         }
@@ -560,7 +569,7 @@ class userKit {
         if ( $result = $query->execute() ) {            
             return true;
         } else {
-            $this->error('Query could not be executed!');
+            $this->error = 'Query could not be executed!';
             return false;
         }
     }
@@ -617,19 +626,26 @@ class userKit {
         return ( ! empty( $query ) ) ? true : false;
     }
 
-    protected function setUserData( $data ) {
+    protected function setUserData( $data = false ) {
 
         if ( $this->init == false ) {
             return false;
         }
-        
-        if ( ! is_array( $data ) ) {
-            $data = $this->userQuery( $data );
+
+        if ( $data == false ) {
+            $this->ID           = 0;
+            $this->username     = '';
+            $this->email        = '';
+        } else {
+            if ( ! is_array( $data ) ) {
+                $data = $this->userQuery( $data );
+            }
+            
+            $this->ID           = ( ! empty( $data['userid'] ) ? $data['userid'] : 0 );
+            $this->username     = ( ! empty( $data['username'] ) ? $data['username'] : '' );
+            $this->email        = ( ! empty( $data['email'] ) ? $data['email'] : '' );
         }
-        
-        $this->ID           = ( ! empty( $data['userid'] ) ? $data['userid'] : 0 );
-        $this->username     = ( ! empty( $data['username'] ) ? $data['username'] : '' );
-        $this->email        = ( ! empty( $data['email'] ) ? $data['email'] : '' );
+            
     }
 
     protected function isValidUsername( $username ) {
