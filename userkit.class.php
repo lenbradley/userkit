@@ -284,24 +284,24 @@ class userKit {
             return false;
         }
 
-        if ( $this->isValidUsername( $username ) !== true ) {            
+        if ( ! $this->isValidUsername( $username ) ) {            
             $this->error = 'The username you entered is not valid';
             return false;
         }
 
-        if ( !$this->isValidEmail( $email ) ) {            
+        if ( ! $this->isValidEmail( $email ) ) {            
             $this->error = 'The email address you entered is not valid';
             return false;
         }
-        if ( !$this->isValidPassword( $password ) ) {            
+        if ( ! $this->isValidPassword( $password ) ) {            
             $this->error = 'Password does not meet minimum requirements';
             return false;
         }
-        if ( $this->userExists( $username ) ) {            
+        if ( $this->userExists( $username ) ) {
             $this->error = 'The username already exists';
             return false;
         }
-        if ( $this->userExists($email) ) {            
+        if ( $this->userExists( $email ) ) {            
             $this->error = 'The email address is already taken';
             return false;
         }
@@ -370,8 +370,7 @@ class userKit {
         $query->bindParam( ':userid', $userid );
         $query->bindParam( ':email', $email );
         
-        if ( $query->execute() ) {
-            $this->success('New email address has been set');
+        if ( $query->execute() ) {            
             return true;
         } else {
             $this->error = 'A problem occured while changing email address';
@@ -402,9 +401,8 @@ class userKit {
             
             if ( $query->execute() ) {
                 $this->logout();
-                $this->login( $username, $password, $remember );
+                $this->login( $username, $password, $remember );    
                 
-                $this->success = 'New password is set';
                 return true;
             } else {
                 $this->error = 'Query could not be executed!';
@@ -423,11 +421,12 @@ class userKit {
             return '';
         }
 
-        if ( $key == '' ) {         
+        if ( $key == '' ) {
             $query = $this->dbh->prepare('
                 SELECT ' . $this->dbinfo->meta_colname_key . ', ' . $this->dbinfo->meta_colname_val . ' 
                 FROM ' . $this->dbinfo->prefix . $this->dbinfo->meta_table_name . ' 
-                WHERE   ' . $this->dbinfo->meta_colname_userid . ' = :userid');
+                WHERE   ' . $this->dbinfo->meta_colname_userid . ' = :userid'
+            );
             $query->bindParam( ':userid', $userid );
                             
             if ( $query->execute() ) {
@@ -452,10 +451,12 @@ class userKit {
                 WHERE
                     ' . $this->dbinfo->meta_colname_userid . ' = :userid
                     AND LOWER(' . $this->dbinfo->meta_colname_key . ') = :key
-                LIMIT 1');
+                LIMIT 1'
+            );
             $query->bindParam( ':userid', $userid );
             $query->bindParam( ':key', $key );
             $query->execute();
+
             $result = $query->fetch( PDO::FETCH_ASSOC );
                 
             if ( isset( $result[$this->dbinfo->meta_colname_val] ) ) {
@@ -648,24 +649,39 @@ class userKit {
             
     }
 
-    protected function isValidUsername( $username ) {
+    public function isValidUsername( $username ) {
         $error = '';
         $allowed = str_split( $this->config->username_char_whitelist );
         
-        if ( $this->isValidEmail( $username ) ) $error = 'Username cannot be an email address';
-        if ( ! ctype_alnum( str_replace( $allowed, '', $username ) ) ) $error = 'Username contains illegal characters';
-        if ( ctype_digit( $username ) ) $error = 'Username must not contain numbers only';
-        if ( strlen( $username ) < $this->config->username_min_length ) $error = 'Username must be at least ' . $this->config->username_min_length . ' characters';
-        if ( strlen( $username ) > $this->config->username_max_length ) $error = 'Username cannot exceed ' . $this->config->username_min_length . ' characters';
+        if ( $this->isValidEmail( $username ) ) {
+            $error .= 'Username cannot be an email address' . PHP_EOL;
+        }
+
+        if ( ! ctype_alnum( str_replace( $allowed, '', $username ) ) ) {
+            $error .= 'Username contains illegal characters' . PHP_EOL;
+        }
+
+        if ( ctype_digit( $username ) ) {
+            $error .= 'Username must not contain numbers only' . PHP_EOL;
+        }
+
+        if ( strlen( $username ) < $this->config->username_min_length ) {
+            $error .= 'Username must be at least ' . $this->config->username_min_length . ' characters' . PHP_EOL;
+        }
+
+        if ( strlen( $username ) > $this->config->username_max_length ) {
+            $error .= 'Username cannot exceed ' . $this->config->username_min_length . ' characters' . PHP_EOL;
+        }
         
         if ( $error == '' ) {
             return true;
         } else {
-            return $error;
+            $this->error = nl2br( $error, false );
+            return false;
         }
     }
 
-    protected function isValidEmail( $email ) {
+    public function isValidEmail( $email ) {
         if ( filter_var( $email, FILTER_VALIDATE_EMAIL ) && preg_match( '/@.+\./', $email ) ) {
             return true;
         } else {            
@@ -673,7 +689,7 @@ class userKit {
         }
     }
 
-    protected function isValidPassword( $password ) {
+    public function isValidPassword( $password ) {
         if ( strlen( $password ) >= $this->config->password_min_length ) {
             return true;
         } else {            
@@ -681,7 +697,7 @@ class userKit {
         }
     }
 
-    protected function isJson( $data ) {
+    public function isJson( $data ) {
         if ( ( substr( $data, 0, 1 ) == '{' || substr( $data, 0, 1 ) == '[' ) && is_object( json_decode( $data ) ) ) {
             return true;
         } else {
