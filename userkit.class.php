@@ -328,15 +328,16 @@ class userKit {
             $userid = $this->dbh->lastInsertId();
             
             if ( is_array( $meta ) && ! empty( $meta ) ) {
-                $this->ID = $userid;
+                $original_user_to_edit = $this->editUser;
+                $this->editUser = $userid;
                 
                 foreach( $meta as $key => $value ) {
                     $this->addMeta( (string)$key, (string)$value );
                 }
             }
 
-            $this->ID = 0;
-            return $userid;            
+            $this->editUser = $original_user_to_edit;
+            return $userid;
         } else {
             $this->error = 'A problem occured while creating new user';
             return false;
@@ -344,22 +345,21 @@ class userKit {
     }
 
     public function updateEmail( $email = '' ) {
-        $userid = $this->getUserToEdit();
 
-        if ( $userid == 0 ) {
-            $this->error = 'User to edit email address for is invalid';
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
             return false;
-        }
-    
-        if ( ! $this->isValidEmail( $email ) ) {
-            $this->error = 'Email address does not appear to be valid';
-            return false;
-        }
+        }        
         
         if ( $this->userExists( $email ) ) {
             $this->error = 'The email address you entered is already in use';
             return false;
         }
+
+        if ( ! $this->isValidEmail( $email ) ) {
+            $this->error = 'Email address does not appear to be valid';
+            return false;
+        }        
         
         $update_query = '
             UPDATE ' . $this->dbinfo->prefix . $this->dbinfo->table_name . '
@@ -367,7 +367,7 @@ class userKit {
             WHERE ' . $this->dbinfo->colname_userid . ' = :userid';
             
         $query = $this->dbh->prepare( $update_query );
-        $query->bindParam( ':userid', $userid );
+        $query->bindParam( ':userid', $this->editUser );
         $query->bindParam( ':email', $email );
         
         if ( $query->execute() ) {            
@@ -379,16 +379,14 @@ class userKit {
     }
 
     public function changePassword( $password = '', $remember = true ) {
-        $userid = $this->getUserToEdit();
-
-        if ( $userid == 0 ) {
-            $this->error = 'User to edit password for is invalid';
+        
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
             return false;
         }
 
         if ( $this->isValidPassword( $password ) ) {
-            $pass       = $this->hashPassword( $password );
-            $username   = $this->username;
+            $pass = $this->hashPassword( $password );
             
             $update_query = '
                 UPDATE ' . $this->dbinfo->prefix . $this->dbinfo->table_name . '
@@ -396,12 +394,15 @@ class userKit {
                 WHERE ' . $this->dbinfo->colname_userid . ' = :userid';
                 
             $query = $this->dbh->prepare( $update_query );
-            $query->bindParam( ':userid', $userid );
+            $query->bindParam( ':userid', $this->editUser );
             $query->bindParam( ':password', $password );
             
             if ( $query->execute() ) {
-                $this->logout();
-                $this->login( $username, $password, $remember );    
+
+                if ( $this->editUser == $this->ID ) {
+                    $this->logout();
+                    $this->login( $this->username, $password, $remember );
+                }                    
                 
                 return true;
             } else {
@@ -415,10 +416,10 @@ class userKit {
     }
 
     public function meta( $key = '' ) {
-        $userid = $this->getUserToEdit();
-
-        if ( $userid == 0 ) {
-            return '';
+        
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
+            return false;
         }
 
         if ( $key == '' ) {
@@ -427,7 +428,7 @@ class userKit {
                 FROM ' . $this->dbinfo->prefix . $this->dbinfo->meta_table_name . ' 
                 WHERE   ' . $this->dbinfo->meta_colname_userid . ' = :userid'
             );
-            $query->bindParam( ':userid', $userid );
+            $query->bindParam( ':userid', $this->editUser );
                             
             if ( $query->execute() ) {
                 $return = array();
@@ -453,7 +454,7 @@ class userKit {
                     AND LOWER(' . $this->dbinfo->meta_colname_key . ') = :key
                 LIMIT 1'
             );
-            $query->bindParam( ':userid', $userid );
+            $query->bindParam( ':userid', $this->editUser );
             $query->bindParam( ':key', $key );
             $query->execute();
 
@@ -472,9 +473,9 @@ class userKit {
     }
 
     public function addMeta( $key = '', $val = '' ) {
-        $userid = $this->getUserToEdit();
-
-        if ( $userid == 0 || $key == '' || $val == '' ) {
+        
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
             return false;
         }
 
@@ -482,7 +483,7 @@ class userKit {
             $val = json_encode( $val );
         }
         
-        if ( $this->meta($key) ) {
+        if ( $this->meta( $key ) ) {
             $this->error = 'Meta key already exists!';
             return false;
         }
@@ -502,7 +503,7 @@ class userKit {
             )';
         
         $query = $this->dbh->prepare( $insert_query );
-        $query->bindParam( ':userid', $userid );
+        $query->bindParam( ':userid', $this->editUser );
         $query->bindParam( ':key', $key );
         $query->bindParam( ':val', $val );
         
@@ -515,9 +516,9 @@ class userKit {
     }
 
     public function updateMeta( $key = '', $val = '' ) {
-        $userid = $this->getUserToEdit();
-
-        if ( $userid == 0 || $key == '' ) {
+        
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
             return false;
         }
 
@@ -538,7 +539,7 @@ class userKit {
             ';          
             
             $query = $this->dbh->prepare( $update_query );
-            $query->bindParam( ':userid', $userid );
+            $query->bindParam( ':userid', $this->editUser );
             $query->bindParam( ':key', $key );
             $query->bindParam( ':value', $val );            
             
@@ -552,9 +553,9 @@ class userKit {
     }
 
     public function deleteMeta( $key = '' ) {
-        $userid = $this->getUserToEdit();
-    
-        if ( $userid == 0 || $key == '' ) {
+        
+        if ( ! $this->userExists( $this->editUser ) ) {
+            $this->error = 'User does not exist or is invalid';
             return false;
         }
         
@@ -563,8 +564,8 @@ class userKit {
             WHERE ' . $this->dbinfo->meta_colname_userid . ' = :userid
             AND ' . $this->dbinfo->meta_colname_key . ' = :key';
         
-        $query = $this->dbh->prepare($remove_query);
-        $query->bindParam( ':userid', $userid );
+        $query = $this->dbh->prepare( $remove_query );
+        $query->bindParam( ':userid', $this->editUser );
         $query->bindParam( ':key', $key );        
         
         if ( $result = $query->execute() ) {            

@@ -15,6 +15,15 @@ if ( ! empty( $_POST ) ) {
         $userkit->logout();
     }
 }
+
+$meta = array(
+    'meta1' => 'value1',
+    'meta2' => 'value2'
+);
+
+if ( ! $userkit->addUser( 'username', 'nothing@email.com', 'pass1234', $meta ) ) {
+    echo $userkit->error;
+}
 ?>
 
 <?php if ( $userkit->isLoggedIn() ) : ?>
