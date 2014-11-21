@@ -2,11 +2,11 @@
 
 /**
 * Create and manage users along with user meta
-* Start by initializing: $userKit = new userKit();
+* Start by initializing: $userkit = new userKit();
 *
 * @package  userKit
 * @author   Len Bradley <lenbradley@ninepshere.com>
-* @version  2.0.0
+* @version  2.0.1
 * @link     http://www.ninesphere.com
 * @license  http://www.php.net/license/3_01.txt PHP License 3.01
 *
@@ -14,75 +14,37 @@
 
 class userKit {
 
-    public $ID, $editUser, $dbh, $init;
+    public $ID, $editUser, $dbh, $init, $settings;
     protected $config, $dbinfo, $phpass;
 
     public function __construct( $settings = array() ) {
 
-        $settings       = $this->getSettings( $settings );
+        $this->settings = $this->getSettings( $settings );
         $this->ID       = 0;
         $this->editUser = 0;
 
-        if ( $this->setupDatabaseHandler( $settings['dbh'] ) ) {
+        if ( $this->setupDatabaseHandler( $this->settings['dbh'] ) ) {
 
             if ( session_id() == '' ) {                    
                 session_start();
             }
 
-            $this->setupConfig( $settings['config'] );
-            $this->setupDbInfo( $settings['dbinfo'] );
-            $this->setupPHPass( $settings['phpass'] );
+            $this->setup( 'config', $this->settings['config'] );
+            $this->setup( 'dbinfo', $this->settings['dbinfo'] );
+            $this->setup( 'phpass', $this->settings['phpass'] );
             
             $this->init = true;
+            $this->editUser = $this->ID;
 
             if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {                
-                $this->ID = $_SESSION[$this->config->session_var_name];                
+                $this->ID = $_SESSION[$this->config->session_var_name];
                 $this->setUserData( $this->ID );
             } else {
                 $this->tryLoginFromCookie();
             }       
         } else {
-            $this->outputErrorMessage( 'Cannot connect to database' );
+            $this->error = $this->message( 'database_connection_error' );
             $this->init = false;
-        }
-
-        $this->editUser = $this->ID;
-    }
-
-    public function debug( $data = '$this' ) {
-        if ( $data == '$this' ) {
-            $data = $this;
-        }
-        echo '<pre><code>' . print_r( $data, true ) . '</code></pre>';
-    }
-
-    public function outputErrorMessage( $message ) {
-        echo '<p class="error">UserKit Error: ' . $message . '</p>';
-    }
-
-    public function editUser( $user = false ) {
-        if ( $user == false ) {
-            $this->editUser = $this->ID;
-            return true;
-        }
-
-        $user = $this->userQuery( $user );
-
-        if ( isset( $user['userid'] ) ) {
-            $this->editUser = $user['userid'];            
-            return true;
-        } else {
-            $this->editUser = 0;
-            $this->error = 'The user specified to edit does not exist';
-            return false;
-        }
-    }
-
-    public function getUserToEdit() {
-        if ( ! empty( $this->editUser ) ) {
-            return $this->editUser;
-        } else {
-            return $this->ID;
         }
     }
 
@@ -130,6 +92,30 @@ class userKit {
                 'itoa64'                => './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
                 'portable_hashes'       => false,
                 'iteration_count_log2'  => 8
+            ),
+            'messages' => array(
+                'already_logged_in'         => 'You are already logged in',
+                'user_does_not_exist'       => 'The specified user does not exist',
+                'username_password_empty'   => 'Username and password must be entered',
+                'username_not_found'        => 'Username and/or Email Address does not exist',
+                'username_not_valid'        => 'The username entered is not valid',
+                'username_exists'           => 'The username entered already exists',
+                'username_is_email'         => 'Username cannot be an email address',
+                'username_illegal_chars'    => 'Username contains illegal characters',
+                'username_too_short'        => 'Username does not contain the minimum number of characters',
+                'username_too_long'         => 'Username exceeds the maximum number of characters',
+                'username_nums_only'        => 'Username cannot contain only numbers',
+                'password_incorrect'        => 'The password entered is incorrect',
+                'password_not_minimum'      => 'The password does not meet the minimum requirements',
+                'password_not_valid'        => 'The password entered is not valid',
+                'email_not_valid'           => 'The email address entered is not valid',
+                'email_exists'              => 'The email address entered already exists',
+                'cookie_not_valid'          => 'Cookie is not valid',
+                'error_new_user'            => 'A problem occured while creating new user',
+                'error_change_email'        => 'A problem occured while changing email address',
+                'query_execution_error'     => 'Query could not be executed',
+                'meta_key_exists'           => 'Meta key already exists',
+                'database_connection_error' => 'Cannot connect to database'
             )
         );
 
@@ -152,35 +138,67 @@ class userKit {
         return $settings;
     }
 
-    protected function setupConfig( $data = array() ) {
-        $this->config = new stdClass();
+    public function debug( $data = '$this' ) {
+        if ( $data == '$this' ) {
+            $data = $this;
+        }
+        echo '<pre><code>' . print_r( $data, true ) . '</code></pre>';
+    }
 
-        foreach ( $data as $key => $value ) {
-            $this->config->{$key} = $value;
+    public function message( $key = null ) {
+        if ( empty( $key ) || empty( $this->settings['messages'][$key] ) ) {
+            return '';
+        } else {
+            return $this->settings['messages'][$key];
         }
     }
 
-    protected function setupDbInfo( $data = array() ) {
-        $this->dbinfo = new stdClass();
+    public function editUser( $user = false ) {
+        if ( $user == false ) {
+            $this->editUser = $this->ID;
+            return true;
+        }
 
-        foreach ( $data as $key => $value ) {
-            $this->dbinfo->{$key} = $value;
+        $user = $this->userQuery( $user );
+
+        if ( isset( $user['userid'] ) ) {
+            $this->editUser = $user['userid'];            
+            return true;
+        } else {
+            $this->editUser = 0;
+            $this->error = $this->message( 'user_does_not_exist' );
+            return false;
         }
     }
 
-    protected function setupPHPass( $data = array() ) {
-        $this->phpass = new stdClass();
+    public function getUserToEdit() {
+        if ( ! empty( $this->editUser ) ) {
+            return $this->editUser;
+        } else {
+            return $this->ID;
+        }
+    }
+
+    protected function setup( $var = '', $data = array() ) {
+
+        if ( trim( $var ) == '' ) {
+            return false;
+        }
+
+        $this->{$var} = new stdClass();
 
         foreach ( $data as $key => $value ) {
-            $this->phpass->{$key} = $value;
+            $this->{$var}->{$key} = $value;
         }
-        
-        $this->phpass->random_state = microtime();
 
-        if ( function_exists( 'getmypid' ) ) {
-            $this->phpass->random_state .= getmypid();
+        if ( $var == 'phpass' ) {
+            $this->{$var}->random_state = microtime();
+
+            if ( function_exists( 'getmypid' ) ) {
+                $this->{$var}->random_state .= getmypid();
+            }
         }
-    }    
+    }
 
     protected function setupDatabaseHandler( $dbh ) {
 
@@ -188,7 +206,7 @@ class userKit {
             $this->dbh = $dbh;
         } else {
 
-            try {                
+            try {
                 $this->dbh = new PDO( 'mysql:host=' . $dbh['host'] . ';dbname=' . $dbh['name'], $dbh['user'], $dbh['pass'] );
                 $this->dbh->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
             } catch( PDOException $e ) {
@@ -210,12 +228,12 @@ class userKit {
         }
 
         if ( empty( $user ) || empty( $pass ) ) {
-            $this->error = 'Username/Password must be provided';
+            $this->error = $this->message( 'username_password_empty' );
             return false;
         }        
         
         if ( isset( $_SESSION[$this->config->session_var_name] ) ) {
-            $this->error = 'You are already logged in!';
+            $this->error = $this->message( 'already_logged_in' );
             return false;
         }
         
@@ -232,11 +250,11 @@ class userKit {
                 }
                 return true;
             } else {
-                $this->error = 'The password entered is incorrect!';
+                $this->error = $this->message( 'password_incorrect' );
                 return false;
             }
         } else {
-            $this->error = 'Username and/or Email Address does not exist!';
+            $this->error = $this->message( 'username_not_found' );
             return false;
         }
     }
@@ -247,7 +265,7 @@ class userKit {
             $login  = $this->login( $data[1], $data[2], true, true );
             
             if ( ! $login ) {
-                $this->error ='Cookie is not valid';
+                $this->error = $this->message( 'cookie_not_valid' );
                 $this->logout();
             }
         }
@@ -285,24 +303,24 @@ class userKit {
         }
 
         if ( ! $this->isValidUsername( $username ) ) {            
-            $this->error = 'The username you entered is not valid';
+            $this->error = $this->message( 'username_not_valid' );
             return false;
         }
 
         if ( ! $this->isValidEmail( $email ) ) {            
-            $this->error = 'The email address you entered is not valid';
+            $this->error = $this->message( 'email_not_valid' );
             return false;
         }
         if ( ! $this->isValidPassword( $password ) ) {            
-            $this->error = 'Password does not meet minimum requirements';
+            $this->error = $this->message( 'password_not_minimum' );
             return false;
         }
         if ( $this->userExists( $username ) ) {
-            $this->error = 'The username already exists';
+            $this->error = $this->message( 'username_exists' );
             return false;
         }
         if ( $this->userExists( $email ) ) {            
-            $this->error = 'The email address is already taken';
+            $this->error = $this->message( 'email_exists' );
             return false;
         }
 
@@ -339,7 +357,7 @@ class userKit {
             $this->editUser = $original_user_to_edit;
             return $userid;
         } else {
-            $this->error = 'A problem occured while creating new user';
+            $this->error = $this->message( 'error_new_user' );
             return false;
         }
     }
@@ -347,17 +365,17 @@ class userKit {
     public function updateEmail( $email = '' ) {
 
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }        
         
         if ( $this->userExists( $email ) ) {
-            $this->error = 'The email address you entered is already in use';
+            $this->error = $this->message( 'email_exists' );
             return false;
         }
 
         if ( ! $this->isValidEmail( $email ) ) {
-            $this->error = 'Email address does not appear to be valid';
+            $this->error = $this->message( 'email_not_valid' );
             return false;
         }        
         
@@ -373,7 +391,7 @@ class userKit {
         if ( $query->execute() ) {            
             return true;
         } else {
-            $this->error = 'A problem occured while changing email address';
+            $this->error = $this->message( 'error_change_email' );
             return false;
         }
     }
@@ -381,7 +399,7 @@ class userKit {
     public function changePassword( $password = '', $remember = true ) {
         
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }
 
@@ -406,11 +424,11 @@ class userKit {
                 
                 return true;
             } else {
-                $this->error = 'Query could not be executed!';
+                $this->error = $this->message( 'query_execution_error' );
                 return false;
             }           
         } else {
-            $this->error = 'New password is not valid';
+            $this->error = $this->message( 'password_not_valid' );
             return false;
         }
     }
@@ -418,7 +436,7 @@ class userKit {
     public function meta( $key = '' ) {
         
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }
 
@@ -475,7 +493,7 @@ class userKit {
     public function addMeta( $key = '', $val = '' ) {
         
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }
 
@@ -484,7 +502,7 @@ class userKit {
         }
         
         if ( $this->meta( $key ) ) {
-            $this->error = 'Meta key already exists!';
+            $this->error = $this->message( 'meta_key_exists' );
             return false;
         }
         
@@ -510,7 +528,7 @@ class userKit {
         if ( $result = $query->execute() ) {
             return true;
         } else {
-            $this->error = 'Meta query could not be executed!';
+            $this->error = $this->message( 'query_execution_error' );
             return false;
         }
     }
@@ -518,7 +536,7 @@ class userKit {
     public function updateMeta( $key = '', $val = '' ) {
         
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }
 
@@ -546,7 +564,7 @@ class userKit {
             if ( $result = $query->execute() ) {            
                 return true;
             } else {
-                $this->error = 'Meta query could not be executed!';
+                $this->error = $this->message( 'query_execution_error' );
                 return false;
             }
         }
@@ -555,7 +573,7 @@ class userKit {
     public function deleteMeta( $key = '' ) {
         
         if ( ! $this->userExists( $this->editUser ) ) {
-            $this->error = 'User does not exist or is invalid';
+            $this->error = $this->message( 'user_does_not_exist' );
             return false;
         }
         
@@ -571,7 +589,7 @@ class userKit {
         if ( $result = $query->execute() ) {            
             return true;
         } else {
-            $this->error = 'Query could not be executed!';
+            $this->error = $this->message( 'query_execution_error' );
             return false;
         }
     }
@@ -613,6 +631,7 @@ class userKit {
         }
 
         $query->execute();
+        
         $result = $query->fetch( PDO::FETCH_ASSOC );
         
         return ( ! empty( $result ) ) ? $result : false;
@@ -655,23 +674,23 @@ class userKit {
         $allowed = str_split( $this->config->username_char_whitelist );
         
         if ( $this->isValidEmail( $username ) ) {
-            $error .= 'Username cannot be an email address' . PHP_EOL;
+            $error .= $this->message( 'username_is_email' ) . PHP_EOL;
         }
 
         if ( ! ctype_alnum( str_replace( $allowed, '', $username ) ) ) {
-            $error .= 'Username contains illegal characters' . PHP_EOL;
+            $error .= $this->message( 'username_illegal_chars' ) . PHP_EOL;
         }
 
         if ( ctype_digit( $username ) ) {
-            $error .= 'Username must not contain numbers only' . PHP_EOL;
+            $error .= $this->message( 'username_nums_only' ) . PHP_EOL;
         }
 
         if ( strlen( $username ) < $this->config->username_min_length ) {
-            $error .= 'Username must be at least ' . $this->config->username_min_length . ' characters' . PHP_EOL;
+            $error .= $this->message( 'username_too_short' ) . PHP_EOL;
         }
 
         if ( strlen( $username ) > $this->config->username_max_length ) {
-            $error .= 'Username cannot exceed ' . $this->config->username_min_length . ' characters' . PHP_EOL;
+            $error .= $this->message( 'username_too_long' ) . PHP_EOL;
         }
         
         if ( $error == '' ) {
