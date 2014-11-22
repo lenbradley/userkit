@@ -6,7 +6,7 @@
 *
 * @package  userKit
 * @author   Len Bradley <lenbradley@ninepshere.com>
-* @version  2.0.1
+* @version  2.0.11
 * @link     http://www.ninesphere.com
 * @license  http://www.php.net/license/3_01.txt PHP License 3.01
 *
@@ -17,7 +17,7 @@ class userKit {
     public $ID, $editUser, $dbh, $init, $settings;
     protected $config, $dbinfo, $phpass;
 
-    public function __construct( $settings = array() ) {
+    public function __construct( $settings = array() ) {        
 
         $this->settings = $this->getSettings( $settings );
         $this->ID       = 0;
@@ -45,6 +45,14 @@ class userKit {
         } else {
             $this->error = $this->message( 'database_connection_error' );
             $this->init = false;
+        }
+
+        if ( isset( $_SESSION[$this->config->session_var_name] ) ) {
+            $this->debug( $_SESSION[$this->config->session_var_name] );
+        }
+
+        if ( isset( $_COOKIE[$this->config->session_var_name] ) ) {
+            $this->debug( $this->getCookieData( $_COOKIE[$this->config->session_var_name] ) );
         }
     }
 
@@ -86,6 +94,7 @@ class userKit {
                 'username_max_length'       => 16,
                 'password_min_length'       => 8,
                 'cookie_minutes_active'     => 129600, // 90 days
+                'cookie_path'               => '/',
                 'session_var_name'          => '3HbH1Hqp2ZHP5Af3MSHe'
             ),
             'phpass' => array(
@@ -221,7 +230,7 @@ class userKit {
         }
     }
 
-    public function login( $user, $pass, $remember = false ) {
+    public function login( $user, $pass, $remember = false, $login_from_cookie = false ) {
 
         if ( $this->init == false ) {
             return false;
@@ -238,34 +247,45 @@ class userKit {
         }
         
         if ( $query = $this->userQuery( $user ) ) {
-            
-            if ( ( $this->checkPassword( $pass, $query['password'] ) ) ) {
-                $this->setUserData( $query );
 
-                $_SESSION[$this->config->session_var_name] = $query['userid'];
-                
-                if ( $remember == true ) {
-                    $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );
-                    setcookie( $this->config->session_var_name, $data, ( time() + ( 60 * $this->config->cookie_minutes_active ) ) );
+            if ( $login_from_cookie == false ) {
+                if ( ! $this->checkPassword( $pass, $query['password'] ) ) {
+                    $this->error = $this->message( 'password_incorrect' );
+                    return false;
                 }
-                return true;
             } else {
-                $this->error = $this->message( 'password_incorrect' );
-                return false;
+                if ( $password != $query['password'] ) {
+                    $this->error = $this->message( 'cookie_not_valid' );
+                    return false;
+                }
             }
+
+            $this->setUserData( $query );
+
+            $_SESSION[$this->config->session_var_name] = $query['userid'];
+
+            if ( $remember == true ) {
+                $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );
+                setcookie( $this->config->session_var_name, $data, ( time() + ( 60 * $this->config->cookie_minutes_active ) ), $this->config->cookie_path );
+            }           
+
         } else {
             $this->error = $this->message( 'username_not_found' );
             return false;
         }
     }
 
-    public function tryLoginFromCookie() {
+    public function tryLoginFromCookie( $remember = true ) {
         if ( isset( $_COOKIE[$this->config->session_var_name] ) ) {
-            $data   = $this->getData( $_COOKIE[$this->config->session_var_name] );
-            $login  = $this->login( $data[1], $data[2], true, true );
+            $data = $this->getCookieData( $_COOKIE[$this->config->session_var_name] );
+
+            if ( empty( $data[1] ) || empty( $data[2] ) ) {
+                return false;
+            }
+
+            $login = $this->login( $data[1], $data[2], $remember, true );
             
-            if ( ! $login ) {
-                $this->error = $this->message( 'cookie_not_valid' );
+            if ( ! $login ) {                
                 $this->logout();
             }
         }
@@ -609,7 +629,7 @@ class userKit {
     }
 
     protected function getCookieData( $data ) {
-        $data = explode( $this->config->delim, $this->decrypt($data) );
+        $data = explode( $this->config->delim, $this->decrypt( $data ) );
         return array_filter( $data );
     }
 
