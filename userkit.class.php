@@ -6,7 +6,7 @@
 *
 * @package  userKit
 * @author   Len Bradley <lenbradley@ninepshere.com>
-* @version  2.0.11
+* @version  2.0.12
 * @link     http://www.ninesphere.com
 * @license  http://www.php.net/license/3_01.txt PHP License 3.01
 *
@@ -25,7 +25,7 @@ class userKit {
 
         if ( $this->setupDatabaseHandler( $this->settings['dbh'] ) ) {
 
-            if ( session_id() == '' ) {                    
+            if ( session_id() == '' ) {
                 session_start();
             }
 
@@ -37,22 +37,13 @@ class userKit {
             $this->editUser = $this->ID;
 
             if ( isset( $_SESSION[$this->config->session_var_name] ) && $_SESSION[$this->config->session_var_name] != 0 ) {                
-                $this->ID = $_SESSION[$this->config->session_var_name];
-                $this->setUserData( $this->ID );
-            } else {
+                $this->setUserData( $_SESSION[$this->config->session_var_name] );
+            } else {                
                 $this->tryLoginFromCookie();
             }       
         } else {
             $this->error = $this->message( 'database_connection_error' );
             $this->init = false;
-        }
-
-        if ( isset( $_SESSION[$this->config->session_var_name] ) ) {
-            $this->debug( $_SESSION[$this->config->session_var_name] );
-        }
-
-        if ( isset( $_COOKIE[$this->config->session_var_name] ) ) {
-            $this->debug( $this->getCookieData( $_COOKIE[$this->config->session_var_name] ) );
         }
     }
 
@@ -147,8 +138,8 @@ class userKit {
         return $settings;
     }
 
-    public function debug( $data = '$this' ) {
-        if ( $data == '$this' ) {
+    public function debug( $data = 'this' ) {
+        if ( $data == 'this' ) {
             $data = $this;
         }
         echo '<pre><code>' . print_r( $data, true ) . '</code></pre>';
@@ -177,14 +168,6 @@ class userKit {
             $this->editUser = 0;
             $this->error = $this->message( 'user_does_not_exist' );
             return false;
-        }
-    }
-
-    public function getUserToEdit() {
-        if ( ! empty( $this->editUser ) ) {
-            return $this->editUser;
-        } else {
-            return $this->ID;
         }
     }
 
@@ -246,33 +229,32 @@ class userKit {
             return false;
         }
         
-        if ( $query = $this->userQuery( $user ) ) {
-
-            if ( $login_from_cookie == false ) {
-                if ( ! $this->checkPassword( $pass, $query['password'] ) ) {
-                    $this->error = $this->message( 'password_incorrect' );
-                    return false;
-                }
-            } else {
-                if ( $password != $query['password'] ) {
-                    $this->error = $this->message( 'cookie_not_valid' );
-                    return false;
-                }
-            }
-
-            $this->setUserData( $query );
-
-            $_SESSION[$this->config->session_var_name] = $query['userid'];
-
-            if ( $remember == true ) {
-                $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );
-                setcookie( $this->config->session_var_name, $data, ( time() + ( 60 * $this->config->cookie_minutes_active ) ), $this->config->cookie_path );
-            }           
-
-        } else {
+        if ( ! $query = $this->userQuery( $user ) ) {
             $this->error = $this->message( 'username_not_found' );
             return false;
         }
+
+        if ( $login_from_cookie == false ) {
+            if ( ! $this->checkPassword( $pass, $query['password'] ) ) {
+                $this->error = $this->message( 'password_incorrect' );
+                return false;
+            }
+        } else {
+            if ( $pass != $query['password'] ) {
+                $this->error = $this->message( 'cookie_not_valid' );
+                return false;
+            }
+        }
+
+        $this->setUserData( $query );
+        $_SESSION[$this->config->session_var_name] = $query['userid'];
+
+        if ( $remember == true ) {
+            $data = $this->secureCookieData( array( $query['userid'], $query['username'], $query['password'] ) );
+            setcookie( $this->config->session_var_name, $data, ( time() + ( 60 * $this->config->cookie_minutes_active ) ), $this->config->cookie_path );
+        } 
+
+        return true;
     }
 
     public function tryLoginFromCookie( $remember = true ) {
@@ -280,11 +262,12 @@ class userKit {
             $data = $this->getCookieData( $_COOKIE[$this->config->session_var_name] );
 
             if ( empty( $data[1] ) || empty( $data[2] ) ) {
+                $this->logout();
                 return false;
             }
 
             $login = $this->login( $data[1], $data[2], $remember, true );
-            
+
             if ( ! $login ) {                
                 $this->logout();
             }
@@ -293,7 +276,7 @@ class userKit {
 
     public function logout( $redirect = '' ) {
         $this->setUserData( false );
-        setcookie( $this->config->session_var_name, '', ( time() - 3600 ) );
+        setcookie( $this->config->session_var_name, '', ( time() - 3600 ), $this->config->cookie_path );
 
         $_SESSION = array();        
 
